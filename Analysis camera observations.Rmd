@@ -10,6 +10,9 @@ output: html_document
 rm(list = ls())
 #Load libraries
 library("xlsx")
+library("dplyr")
+library("tidyr")
+library("ggplot2")
 
 ###Analyze first set of camera observations-Adam#### 
 #Read file
@@ -30,9 +33,7 @@ table(base$Que.hace.)
 #Subset date when bird is eating fruits. Comiendo=eating, sacando=taking out
 base_limpia<-subset(base,substr(base$Que.hace,1,8)=="comiendo" | substr(base$Que.hace,1,8)=="sacando")
 
-#The data base consists of consecutive shots made to individuals that were feeding on 
-#Heliconia tortuosa, so there might be multiple shots to the same individual. I would like to tag
-#with a unique id a same individual that was observed during multiple shots. 
+#The data base consists of consecutive shots made to individuals that were feeding on Heliconia tortuosa, so there might be multiple shots to the same individual. I would like to tag with a unique id a same individual that was observed during multiple shots. 
 #Order the data by date and hour
 base_limpia<-base_limpia[order(base_limpia$Fecha,base_limpia$Hora),]
 
@@ -49,8 +50,7 @@ base_limpia<-cbind(base_limpia,difference)
 #Table of differences between each consecutive shot
 table(base_limpia$diff.base_limpia...4..)
 
-#I consider different individuals when the difference is greater than 100 seconds and less than 0 
-#(negative values indicate difference in an observation in the evening and in the morning). 
+#I consider different individuals when the difference is greater than 100 seconds and less than 0 (negative values indicate difference in an observation in the evening and in the morning). 
 #I tag with a 1 when the difference is greater than 100 seconds or less than 0
 base_limpia$tag<-ifelse(base_limpia$diff.base_limpia...4..>=0 & base_limpia$diff.base_limpia...4..<=100,0,1)
 
@@ -79,12 +79,15 @@ base_limpia_2$visits<-1
 base_limpia_2<-aggregate(base_limpia_2$visits,by=list(base_limpia_2$complete_name),FUN=sum)
 
 colnames(base_limpia_2)<-c("species","visits_eats")
+```
 
+
+```{r}
 
 ####Analyze second set of camera observations- Data base that Shakil analyzed####
 #Read file
-shak_base<-read.xlsx("Shakil data final.xlsx",sheet=1)
-shak_base<-read.xlsx("Shakil data final.xlsx",sheetIndex=1)
+#shak_base<-read.xlsx("Shakil data final.xlsx",sheet=1)
+shak_base<-read.xlsx("Data bases/Shakil data final.xlsx",sheetIndex=1)
 #shak_base<-read.csv("Shakil data final.csv")
 
 #Select rows and columns that have data
@@ -129,7 +132,33 @@ visits_eats<-aggregate(visits_eats$visits,by=list(species=visits_eats$bird_speci
 
 #Rename columns
 colnames(visits_eats)[2]<-"visits_eats"
+```
 
+```{r}
+#Statistics of how many days were cameras active. There are some cameras that did not had continuous days of sampling. For example, camera 29 in year 2016 from shak_base they sampled continuosly from 3-6 June and then there is a data on June 11. Maybe the camera did not capture a bird between those days or it might had been broken or something else. 
+base_limpia %>% 
+  mutate(year=format(as.Date(.$Fecha), "%Y")) %>% 
+  mutate(Patch.year=paste(Parche,year,sep=".")) %>% 
+  group_by(Patch.year,X..Camara,Fecha) %>% 
+  summarise(n=n_distinct(Fecha)) %>% 
+  summarise(counts=sum(n)) %>% 
+  ungroup() %>% 
+  select(counts) %>% 
+  bind_rows(shak_base %>% 
+              mutate(year=format(as.Date(.$date), "%Y")) %>% 
+  mutate(Patch.year=paste(patch,year,sep=".")) %>%
+      group_by(Patch.year,camera_number,date) %>% 
+  summarise(n=n_distinct(date)) %>% 
+  summarise(counts=sum(n)) %>% 
+    ungroup() %>% 
+  select(counts)) %>% 
+  summary()
+
+```
+
+
+
+```{r}
 #Paste both data bases
 visits_eats<-rbind(base_limpia_2,visits_eats)
 
@@ -147,7 +176,10 @@ visits_eats<-cbind(visits_eats,data.frame(Proportion_visits_eats=prop.table(as.m
 
 #Rename columns
 colnames(visits_eats)[2:3]<-c("visits_eats","Proportion_visits_eats")
+```
 
+
+```{r}
 
 #Plot number of visits_eats per species
 visits_eats<-visits_eats[order(-visits_eats$visits_eats),] 
