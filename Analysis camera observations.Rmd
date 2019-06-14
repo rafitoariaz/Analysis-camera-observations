@@ -1,0 +1,494 @@
+---
+title: "Camera observations"
+author: "Luis Antonio Arias Medellin"
+date: "June 14, 2019"
+output: html_document
+---
+
+
+```{r}
+rm(list = ls())
+#Load libraries
+library("xlsx")
+
+###Analyze first set of camera observations-Adam#### 
+#Read file
+base<-read.xlsx("Data bases/Datos_camaras_2014-5 Adam.xlsx",sheetName=2)
+
+#Head data base
+head(base)
+
+#Know the dates and hours in which observations were made per patch
+table(base$Fecha) #Observation were made in September-October 2014 andAugust-September 2015
+table(substr(base$Hora,12,13)) 
+table(base$Fecha,base$Parche) #See how many days per patch were the cameras working
+
+#Table of column "Que.hace."=what the bird is doing since in all the visits made by birds they did
+#not take fruits
+table(base$Que.hace.)
+
+#Subset date when bird is eating fruits. Comiendo=eating, sacando=taking out
+base_limpia<-subset(base,substr(base$Que.hace,1,8)=="comiendo" | substr(base$Que.hace,1,8)=="sacando")
+
+#The data base consists of consecutive shots made to individuals that were feeding on 
+#Heliconia tortuosa, so there might be multiple shots to the same individual. I would like to tag
+#with a unique id a same individual that was observed during multiple shots. 
+#Order the data by date and hour
+base_limpia<-base_limpia[order(base_limpia$Fecha,base_limpia$Hora),]
+
+
+#Obtain the difference in seconds of each consecutive shot
+difference<-data.frame(diff(base_limpia[,4]))
+
+#Add a row to the difference data frame so that it has the same length as base_limpia
+difference<-rbind(data.frame(diff.base_limpia...4..=0),difference)
+
+#Bind the difference data frame with the camera observations data frame
+base_limpia<-cbind(base_limpia,difference)
+
+#Table of differences between each consecutive shot
+table(base_limpia$diff.base_limpia...4..)
+
+#I consider different individuals when the difference is greater than 100 seconds and less than 0 
+#(negative values indicate difference in an observation in the evening and in the morning). 
+#I tag with a 1 when the difference is greater than 100 seconds or less than 0
+base_limpia$tag<-ifelse(base_limpia$diff.base_limpia...4..>=0 & base_limpia$diff.base_limpia...4..<=100,0,1)
+
+#Make cumulative sum of rows so that each different individual will have a unique number
+base_limpia$id<-cumsum(base_limpia$tag)
+
+#Make a unique id
+base_limpia$unique_id<-paste(base_limpia$Especie,base_limpia$id)
+
+#INFORMATION ABOUT CAMERA OBSERVATIONS#
+table(base_limpia$Parche,base_limpia$X..Camara)
+
+#Delete repeated uniques id's
+base_limpia_2<-data.frame(unique(base_limpia$unique_id))
+
+#Tag each individual with its scientific name
+base_limpia_2$id<-substr(base_limpia_2$unique.base_limpia.unique_id.,1,4)
+base_limpia_2$complete_name<-""
+base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="blac","Myadestes melanops","")
+base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="Blue","Momotus momota",base_limpia_2$complete_name)
+base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="Clay","Turdus grayi",base_limpia_2$complete_name)
+base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="Oran","Catharus aurantiirostris",base_limpia_2$complete_name)
+
+#Create a row with 1's to aggregate and obtain number of visits per species
+base_limpia_2$visits<-1
+base_limpia_2<-aggregate(base_limpia_2$visits,by=list(base_limpia_2$complete_name),FUN=sum)
+
+colnames(base_limpia_2)<-c("species","visits_eats")
+
+
+####Analyze second set of camera observations- Data base that Shakil analyzed####
+#Read file
+shak_base<-read.xlsx("Shakil data final.xlsx",sheet=1)
+shak_base<-read.xlsx("Shakil data final.xlsx",sheetIndex=1)
+#shak_base<-read.csv("Shakil data final.csv")
+
+#Select rows and columns that have data
+shak_base<-shak_base[1:151,1:11]
+
+#Subset if species has a name. The one that does not have a name was taken
+#by an animal that took it fast and we could not identify it
+shak_base<-subset(shak_base,shak_base$bird_species!="")
+
+#PLOT NUMBER OF VISITS PER PATCH#
+
+#Create a row with 1's to aggregate and obtain number of visits per species
+shak_base$visits<-1
+
+#Subset if individuals ate fruits
+visits_eats<-subset(shak_base,shak_base$fruit_taken..Round.up.>0)
+
+#Tables for obtaining information  of how many cameras observations were made
+#per patch and day
+table(visits_eats$patch,visits_eats$camera_number)
+table(visits_eats$date,visits_eats$camera_number)
+
+#Obtain a matrix of the number of observations per day by camera number. Each
+#camera was placed in one specific patch and was not used in other patch
+days<-as.matrix(table(visits_eats$date,visits_eats$camera_number))
+
+#Replace number of observations by 1's
+days[days>0]<-1
+
+#Sum the columns to 
+days<-colSums(days)
+
+visits_eats_days<-merge(aggregate(visits_eats$date,by=list(
+  camera=visits_eats$camera_number,patch=visits_eats$patch),FUN=min),
+  aggregate(visits_eats$date,by=list(
+    camera=visits_eats$camera_number,patch=visits_eats$patch),FUN=max),
+  by=c("camera","patch"),all=T)
+visits_eats_days$diff<-(visits_eats_days$x.y-visits_eats_days$x.x)+1
+
+#aggregate and obtain number of visits per species
+visits_eats<-aggregate(visits_eats$visits,by=list(species=visits_eats$bird_species),FUN=sum)
+
+#Rename columns
+colnames(visits_eats)[2]<-"visits_eats"
+
+#Paste both data bases
+visits_eats<-rbind(base_limpia_2,visits_eats)
+
+#aggregate and obtain number of visits per species
+visits_eats<-aggregate(visits_eats$visits,by=list(species=visits_eats$species),FUN=sum)
+
+#Rename columns
+colnames(visits_eats)[2]<-"visits_eats"
+
+#Take out species that we double checked in the images that did not eat fruits.
+visits_eats<-visits_eats[c(3,4,7,8,10,12:14),]
+
+#Obtain proportion of total visits_eats
+visits_eats<-cbind(visits_eats,data.frame(Proportion_visits_eats=prop.table(as.matrix(visits_eats[,2]))))
+
+#Rename columns
+colnames(visits_eats)[2:3]<-c("visits_eats","Proportion_visits_eats")
+
+
+#Plot number of visits_eats per species
+visits_eats<-visits_eats[order(-visits_eats$visits_eats),] 
+jpeg("Z:/Graphs/Number of visits to Heliconia tortuosa per bird species feeding pool Shakil Adam.jpg",
+     quality=100,width=1000,height=800)
+par(mar=c(22,7,2,1))
+position<-barplot(visits_eats$visits_eats,xlab="",ylab="",ylim=c(0,40),cex.lab=2,cex.axis=2)
+axis(side=1,at=position,labels=visits_eats$species,las=2,cex.axis=2)
+mtext(side=2,line=4,text="Number of visits",cex=2)
+mtext(side=1,line=20,text="Species",cex=2)
+dev.off()
+
+#Plot proportion of visits_eats per species
+visits_eats<-visits_eats[order(-visits_eats$Proportion_visits_eats),]
+jpeg("Z:/Graphs/Proportion of visits to Heliconia tortuosa per bird species feeding pool Shakil Adam.jpg",
+     quality=100,width=1000,height=800)
+par(mar=c(29,9,7,1))
+position<-barplot(visits_eats$Proportion_visits_eats,ylim=c(0,0.4),xlab="",ylab="",
+                  cex.axis=3,cex.lab=3,main="",cex.main=3)
+mtext(side=2,line=5,text="Proportion of foraging events",cex=3)
+mtext(side=1,line=27,text="Species",cex=3)
+axis(side=1,at=position,labels=visits_eats$species,cex.axis=2.5,las=2,font=3)
+dev.off()
+
+
+####SUMMARY OF OBSERVATIONS TAKEN####
+#First standardize the column names so that I can paste them
+#Create a copy of the original data bases
+base_limpia_copy<-base_limpia[,1:4]
+shak_base_copy<-shak_base[,c(2,1,3,8)]
+
+#Change column names
+colnames(base_limpia_copy)[1:4]<-c("patch","cam_num","date","hour")
+colnames(shak_base_copy)[1:4]<-c("patch","cam_num","date","hour")
+
+#Because there
+base_limpia_copy$hour<-as.character(base_limpia_copy$hour)
+shak_base_copy$hour<-as.character(shak_base_copy$hour)
+
+base_limpia_copy$date<-as.character(base_limpia_copy$date)
+shak_base_copy$date<-as.character(shak_base_copy$date)
+
+#Paste data bases
+summary_database<-rbind(base_limpia_copy,shak_base_copy)
+
+#Know the dates in which observations were made
+unique(as.Date(summary_database$date))
+
+#
+table(summary_database$patch,summary_database$cam_num)
+  table_patch_camera<-data.frame(patch=c(10,16,24,28,29,32,33,35,58,63),
+                               counts_cam=c(4,5,1,1,2,4,1,1,4,1))
+
+summary(table_patch_camera$counts_cam)
+sd(table_patch_camera$counts_cam)
+hist(table_patch_camera$counts_cam)
+
+
+
+####OBTAIN NUMBER OF FRUITS EATEN PER SPECIES####
+#I take the information from Shakil data base about the number of fruits eaten per visit and multiply it
+#by the total visits per species considering Adam's data too
+#Analysis on number of fruits taken
+
+#Change column name
+colnames(shak_base)[7]<-"fruit_taken_round"
+
+#Subset birds that took fruits
+fruits_taken_base<-subset(shak_base,shak_base$fruit_taken_round!=0)
+
+#Aggregate
+fruits_taken_mean<-aggregate(fruits_taken_base$fruit_taken_round,by=list(species=fruits_taken_base$bird_species),FUN=mean)
+
+#Rename columns
+colnames(fruits_taken_mean)[2]<-"fruits_taken_mean"
+
+#Merge Adam's and Shakil data base with mean number of fruits eaten per visit
+fruits_taken_mean<-merge(fruits_taken_mean,visits_eats,by="species",all=F)
+
+#Multiply mean number of fruits taken per visit by number of visits
+fruits_taken_mean$tot_fruits<-fruits_taken_mean$fruits_taken_mean*fruits_taken_mean$visits_eats
+
+#Graph by order of number of fruits taken
+fruits_taken_mean<-fruits_taken_mean[order(-fruits_taken_mean$tot_fruits),] 
+par(mar=c(12,3,2,1))
+position<-barplot(fruits_taken_mean$tot_fruits,xlab="Species",ylab="Number of fruits eaten",ylim=c(0,120))
+axis(side=1,at=position,labels=fruits_taken_mean$species,las=2)
+
+#Obtain proportion of fruits eaten
+fruits_taken_mean<-cbind(fruits_taken_mean,data.frame(Proportion_fruits_eats=prop.table(as.matrix(fruits_taken_mean[,5]))))
+
+
+#Plot proportion of fruits eaten per species
+fruits_taken_mean<-fruits_taken_mean[order(-fruits_taken_mean$Proportion_fruits_eats),]
+par(mar=c(16,5,2,1))
+position<-barplot(fruits_taken_mean$Proportion_fruits_eats,ylim=c(0,0.4),xlab="Species",ylab="Proportion of fruits eaten",
+                  cex.axis=1.5,cex.lab=1.5,main="Proportion of visits",
+                  cex.main=1.5)
+axis(side=1,at=position,labels=fruits_taken_mean$species,cex.axis=1.5,las=2)
+
+
+
+
+
+
+
+#Copy data base
+base_limpia_3<-base_limpia
+
+#Obtain Year from date column
+base_limpia_3$year<-format(as.Date(base_limpia_3$Fecha,format="%d/%m/%Y"),"%Y")
+
+#Delete repeated uniques id's
+base_limpia_3<-unique(base_limpia_3[,c(1,2,13,12)])
+
+#Rename columns
+colnames(base_limpia_3)[1:4]<-c("patch","camera","year","unique_id")
+
+#Tag each individual with its scientific name
+base_limpia_3$id<-substr(base_limpia_3$unique_id,1,4)
+base_limpia_3$complete_name<-""
+base_limpia_3$complete_name<-ifelse(base_limpia_3$id=="blac","Myadestes melanops","")
+base_limpia_3$complete_name<-ifelse(base_limpia_3$id=="Blue","Momotus momota",base_limpia_3$complete_name)
+base_limpia_3$complete_name<-ifelse(base_limpia_3$id=="Clay","Turdus grayi",base_limpia_3$complete_name)
+base_limpia_3$complete_name<-ifelse(base_limpia_3$id=="Oran","Catharus aurantiirostris",base_limpia_3$complete_name)
+
+#Create a row with 1's to aggregate and obtain number of visits per species
+base_limpia_3$visits<-1
+
+###Use this code if I want to agregate per species
+#base_limpia_3<-aggregate(base_limpia_3$visits,by=list(patch=base_limpia_3$patch,camera=base_limpia_3$camera,
+#                                                      year=base_limpia_3$year,
+#                                                      species=base_limpia_3$complete_name),
+#                         FUN=sum)
+
+#colnames(base_limpia_3)[5]<-"visits_eats"
+
+
+#Aggregate per patch
+base_limpia_3<-aggregate(base_limpia_3$visits,by=list(patch=base_limpia_3$patch,camera=base_limpia_3$camera,
+                                                      year=base_limpia_3$year),FUN=sum)
+
+#Rename columns
+colnames(base_limpia_3)[4]<-"visits_eats"
+
+
+
+
+
+#DHAKIL
+
+#Subset if individuals ate fruits
+shak_base2<-subset(shak_base,shak_base$fruit_taken_round>0)
+
+#Obtain Year from date column
+shak_base2$year<-format(as.Date(shak_base2$date,format="%d/%m/%Y"),"%Y")
+
+###Use this code if I want to agregate per species
+#aggregate and obtain number of visits per species per patch
+#shak_base2<-aggregate(shak_base2$visits,by=list(patch=shak_base2$patch,camera=shak_base2$camera,
+#                                                year=shak_base2$year,species=shak_base2$bird_species),
+#                      FUN=sum)
+
+#Rename columns
+#colnames(shak_base2)[5]<-"visits_eats"
+
+
+#aggregate and obtain number of visits per species per patch
+shak_base2<-aggregate(shak_base2$visits,by=list(patch=shak_base2$patch,camera=shak_base2$camera,
+                                                year=shak_base2$year),FUN=sum)
+
+#Rename columns
+colnames(shak_base2)[4]<-"visits_eats"
+
+
+#Paste bases for analysis of number of visits per patch
+base_visits<-rbind(base_limpia_3,shak_base2)
+
+
+
+
+
+
+####ANALYSIS OF VISITS PER PATCH####
+#See if the visits per patch increases according to patch characteristics
+#Read excel data base of patch id, patch size and % forest
+patches<-read.xlsx("Site_info_Costa_Rica.xlsx",sheetName=1)
+
+#Keep columns of interest
+patches<-patches[,c(1,5,6,3)]
+
+#Rename columns
+colnames(patches)<-c("patch","PERCENT_FOREST","elevation","Psize")
+
+#Merge areas with patch information data bases
+base_visits<-merge(base_visits,patches,by="patch")
+
+
+
+#See if data is normally distributed
+par(mfrow = c(1, 2))
+hist(base_visits$visits) #This one although not the best one
+hist(log(base_visits$visits)) 
+
+hist(base_visits$Psize) 
+hist(log(base_visits$Psize)) #This is not good but I will use it
+
+hist(base_visits$PERCENT_FOREST) 
+hist(log(base_visits$PERCENT_FOREST)) #This is not good but I will use it
+
+hist(base_visits$elevation) 
+hist(log(base_visits$elevation)) #This is not good but I will use it
+
+base_visits$logvisits<-log(base_visits$visits)
+base_visits$logPsize<-log(base_visits$Psize)
+base_visits$logPERCENT_FOREST<-log(base_visits$PERCENT_FOREST)
+base_visits$logelevation<-log(base_visits$elevation)
+
+#Plot with selected variables for analysis
+pairs(base_visits[,c(4,9:11)],panel=panel.smooth)
+
+
+#Test models. Start from the simplest to the most complex
+#Without considering fixed and random factor
+model_1<-glm(visits_eats~logPsize,data=base_visits,family="poisson")
+summary(model_1) #
+
+model_2<-glm(visits_eats~logPERCENT_FOREST,data=base_visits,family="poisson")
+summary(model_2) #
+
+model_3<-glm(visits_eats~logelevation,data=base_visits,family="poisson")
+summary(model_3) #
+
+model_4<-glm(visits_eats~logPsize+logelevation,data=base_visits,family="poisson")
+summary(model_4) #elevation
+
+model_5<-glm(visits_eats~logPERCENT_FOREST+logelevation,data=base_visits,family="poisson")
+summary(model_5) #forest
+
+model_6<-glm(visits_eats~logPsize+logPERCENT_FOREST,data=base_visits,family="poisson")
+summary(model_6) #forest
+
+model_7<-glm(visits_eats~logPsize+logPERCENT_FOREST+logelevation,data=base_visits,family="poisson")
+summary(model_7) #forest
+
+model_8<-glm(visits_eats~logPsize*logPERCENT_FOREST+logelevation,data=base_visits,family="poisson")
+summary(model_8) #forest
+
+#Add a random factor. Do not know how to include elevation as a random factor
+library("lme4")
+model_9<-glmer(visits_eats~logPsize+(1+camera|patch),data=base_visits,family="poisson")
+summary(model_9)
+
+model_10<-glmer(visits_eats~logPERCENT_FOREST+(1+camera|patch),data=base_visits,family="poisson")
+summary(model_10) #forest
+
+model_11<-glmer(visits_eats~logPsize+logPERCENT_FOREST+(1+camera|patch),data=base_visits,family="poisson")
+summary(model_11) #forest
+
+model_12<-glmer(visits_eats~logPsize+logPERCENT_FOREST+logelevation+(1+camera|patch),data=base_visits,family="poisson")
+summary(model_12) #forest
+
+model_13<-glmer(visits_eats~logPsize*logPERCENT_FOREST+logelevation+(1+camera|patch),data=base_visits,family="poisson")
+summary(model_13) #forest
+
+#AIC
+aic<-AIC(model_1,model_2,model_3,model_4,model_5,model_6,model_7,model_8,model_9,model_10,model_11,model_12,model_13)
+aic[order(aic$AIC),] #Model 2 without random factor and 9 with random factor is the best one
+
+library("ggplot2")
+ggplot(base_visits, aes(x = logPsize, y = logPERCENT_FOREST, size = visits_eats,fill=visits_eats)) + 
+  geom_point(shape=21)+
+  labs(x = expression(paste("Patch size (m"^"2",")")), y = "Percentage of forest")+
+  scale_size(range = c(1, 10))+
+  guides(size=F)+
+  scale_fill_continuous(low = "plum1", high = "purple4")
+
+#AIC weights
+library("MuMIn")
+round(Weights(aic),digits=2) #Considering all models, model 2 is the best one
+round(Weights(aic[1:7,]),digits=2) #Considering models without random factor, model 2 is the best one
+round(Weights(aic[8:11,]),digits=2) #Considering models with random factor, model 9 is the best one
+
+#Plot best model
+plot(base_visits$logPERCENT_FOREST,base_visits$visits_eats,pch=16,
+     xlab="Log proportion of forest in available sites",ylab="Number of visits",
+     cex.axis=1.5,cex.lab=1.5)
+plot(base_visits$logPsize,base_visits$visits_eats,pch=16,
+     xlab="Log patch size in available sites",ylab="Number of visits",
+     cex.axis=1.5,cex.lab=1.5)
+
+library("ggplot2")
+p6 <- ggplot(base_visits, aes(x = logPsize, y = visits_eats,size=logPERCENT_FOREST,fill=logPERCENT_FOREST)) +
+  geom_point(shape=21)
+p6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Subset if individuals ate fruits
+shak_base3<-subset(shak_base,shak_base$fruit_taken_round>0)
+
+#aggregate and obtain number of visits per species per patch
+shak_base3<-aggregate(shak_base3$visits,by=list(patch=shak_base3$patch,camera=shak_base3$camera,
+                                                bird_species=shak_base3$bird_species,
+                                                date=shak_base3$date),FUN=sum)
+
+colnames(shak_base3)[5]<-"abundance"
+
+start_end_videos<-unique(shak_base[,c("patch","camera_number","date","time_start_record","time_end_record")])
+
+start_end_videos$length<-start_end_videos$time_end_record-start_end_videos$time_start_record
+
+start_end_videos<-subset(start_end_videos,start_end_videos$length!="NA")
+
+start_end_videos$length<-as.numeric(start_end_videos$length)
+
+shak_base3<-merge(shak_base3,start_end_videos[,c(1:3,6)],by.x=c("patch","camera","date"),
+                  by.y=c("patch","camera_number","date"))
+
+shak_base3$abundance_stand<-shak_base3$abundance/shak_base3$length
+
+boxplot(shak_base3$abundance_stand~shak_base3$bird_species,las=2)
+
+```
+
