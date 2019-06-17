@@ -171,6 +171,9 @@ colnames(visits_eats)[2]<-"visits_eats"
 #Take out species that we double checked in the images that did not eat fruits.
 visits_eats<-visits_eats[c(3,4,7,8,10,12:14),]
 
+#Number of visits where the bird ate a fruit that we recorded
+sum(visits_eats$visits_eats)
+
 #Obtain proportion of total visits_eats
 visits_eats<-cbind(visits_eats,data.frame(Proportion_visits_eats=prop.table(as.matrix(visits_eats[,2]))))
 
@@ -183,6 +186,11 @@ colnames(visits_eats)[2:3]<-c("visits_eats","Proportion_visits_eats")
 
 #Plot number of visits_eats per species
 visits_eats<-visits_eats[order(-visits_eats$visits_eats),] 
+
+#Rounded proportion of visits per species
+round(visits_eats$Proportion_visits_eats,2)
+cumsum(round(visits_eats$Proportion_visits_eats,2))
+
 jpeg("Z:/Graphs/Number of visits to Heliconia tortuosa per bird species feeding pool Shakil Adam.jpg",
      quality=100,width=1000,height=800)
 par(mar=c(22,7,2,1))
