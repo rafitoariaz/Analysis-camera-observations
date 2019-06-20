@@ -63,22 +63,38 @@ base_limpia$unique_id<-paste(base_limpia$Especie,base_limpia$id)
 #INFORMATION ABOUT CAMERA OBSERVATIONS#
 table(base_limpia$Parche,base_limpia$X..Camara)
 
-#Delete repeated uniques id's
-base_limpia_2<-data.frame(unique(base_limpia$unique_id))
-
 #Tag each individual with its scientific name
-base_limpia_2$id<-substr(base_limpia_2$unique.base_limpia.unique_id.,1,4)
-base_limpia_2$complete_name<-""
-base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="blac","Myadestes melanops","")
-base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="Blue","Momotus momota",base_limpia_2$complete_name)
-base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="Clay","Turdus grayi",base_limpia_2$complete_name)
-base_limpia_2$complete_name<-ifelse(base_limpia_2$id=="Oran","Catharus aurantiirostris",base_limpia_2$complete_name)
+base_limpia$id<-substr(base_limpia$unique_id,1,4)
+base_limpia$complete_name<-""
+base_limpia$complete_name<-ifelse(base_limpia$id=="blac","Myadestes melanops","")
+base_limpia$complete_name<-ifelse(base_limpia$id=="Blue","Momotus momota",base_limpia$complete_name)
+base_limpia$complete_name<-ifelse(base_limpia$id=="Clay","Turdus grayi",base_limpia$complete_name)
+base_limpia$complete_name<-ifelse(base_limpia$id=="Oran","Catharus aurantiirostris",base_limpia$complete_name)
 
-#Create a row with 1's to aggregate and obtain number of visits per species
-base_limpia_2$visits<-1
-base_limpia_2<-aggregate(base_limpia_2$visits,by=list(base_limpia_2$complete_name),FUN=sum)
+#Obtain the number of observations per species per year
+base_limpia_by_year<-base_limpia %>% 
+  mutate(year=format(base_limpia$Fecha,"%Y")) %>% 
+  select(year,unique_id,complete_name) %>% 
+  distinct() %>% 
+  group_by(year,complete_name) %>% 
+  summarise(counts=n()) %>% 
+  ungroup()
 
-colnames(base_limpia_2)<-c("species","visits_eats")
+#Obtain the proportion of observation per species per year
+base_limpia_by_year<-base_limpia_by_year %>% 
+  group_by(year) %>% 
+  mutate(total=sum(counts)) %>% 
+ungroup() %>% 
+mutate(prop=counts/total)
+
+#Aggregate and obtain number of visits per species
+base_limpia_2<-base_limpia %>% 
+  mutate(year=format(base_limpia$Fecha,"%Y")) %>% 
+  select(year,unique_id,complete_name) %>% 
+  distinct() %>% 
+  group_by(complete_name) %>% 
+  summarise(counts=n()) %>% 
+  ungroup()
 ```
 
 
@@ -127,6 +143,21 @@ visits_eats_days<-merge(aggregate(visits_eats$date,by=list(
   by=c("camera","patch"),all=T)
 visits_eats_days$diff<-(visits_eats_days$x.y-visits_eats_days$x.x)+1
 
+#Obtain the number of observations per species per year
+base_limpia_shakil_by_year<-visits_eats %>% 
+  mutate(year=format(visits_eats$date,"%Y")) %>% 
+  group_by(year,bird_species) %>% 
+  summarise(counts=n()) %>% 
+  ungroup()
+
+#Obtain the proportion of observation per species per year
+base_limpia_shakil_by_year<-base_limpia_shakil_by_year %>% 
+  group_by(year) %>% 
+  mutate(total=sum(counts)) %>% 
+ungroup() %>% 
+mutate(prop=counts/total) %>% 
+  rename(complete_name=bird_species)
+
 #aggregate and obtain number of visits per species
 visits_eats<-aggregate(visits_eats$visits,by=list(species=visits_eats$bird_species),FUN=sum)
 
@@ -159,8 +190,27 @@ base_limpia %>%
 
 
 ```{r}
+#This one is by year
+visits_eats_by_year<-base_limpia_by_year %>% 
+  bind_rows(base_limpia_shakil_by_year) %>% 
+  filter(complete_name!="Atlapetes albinucha") %>% #Take out species that we double checked in the images that did not eat fruits.
+  filter(complete_name!="Attila spadiceus") %>% 
+  filter(complete_name!="Cyanocompsa cyanoides") %>% 
+  filter(complete_name!="Henicorhina leucophrys") %>% 
+  filter(complete_name!="Ramphocelus passerinii") %>% 
+  filter(complete_name!="Syndactila subalaris") %>% 
+  group_by(year) %>% 
+  mutate(total=sum(counts)) %>% 
+ungroup() %>% 
+mutate(prop=counts/total)
+
 #Paste both data bases
-visits_eats<-rbind(base_limpia_2,visits_eats)
+visits_eats<-base_limpia_2 %>% 
+  rename(species=complete_name,
+         visits_eats=counts) %>% 
+  bind_rows(visits_eats) %>% 
+  rename(visits=visits_eats)
+
 
 #aggregate and obtain number of visits per species
 visits_eats<-aggregate(visits_eats$visits,by=list(species=visits_eats$species),FUN=sum)
